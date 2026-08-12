@@ -37,29 +37,10 @@
 class Solution:
 
     def count_steady_stretches(self, readings: list[int], allowed_gap: int) -> int:
-
-        if not readings:
-            return 0
-
-        heap = [(0,0)]
         candidates = []
-
-        i = 0
-        while i < len(heap):
-            stretch_bounds = heap[i]
-            i += 1 
-            left_index = stretch_bounds[0]
-            right_index = stretch_bounds[1]
-            stretch = readings[left_index:right_index + 1]
-            if abs(max(stretch) - min(stretch)) <= allowed_gap:
-                candidates.append(stretch)
-            if right_index + 1 < len(readings):
-                candidate_1  = (left_index, right_index + 1)
-                if candidate_1 not in heap:
-                    heap.append(candidate_1)
-            if left_index < right_index:
-                candidate_2 = (left_index + 1, right_index)
-                if candidate_2 not in heap:
-                    heap.append(candidate_2)
-            
+        for i in range(len(readings)):
+            for j in range(i, len(readings)):
+                stretch = readings[i:j+1]
+                if abs(max(stretch) - min(stretch)) <= allowed_gap:
+                    candidates.append(stretch)
         return len(candidates)

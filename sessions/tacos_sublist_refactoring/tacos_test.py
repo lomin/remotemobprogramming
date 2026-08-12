@@ -9,7 +9,7 @@ import pytest
 
 from remotemobprogramming.bench import assert_scales_like
 
-from sessions.tacos.main import Solution
+from sessions.tacos_sublist_refactoring.main import Solution
 
 SIZES = [2000, 10000, 40000, 100000, 200000]
 
