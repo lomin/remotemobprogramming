@@ -98,12 +98,39 @@ def test_the_suffix_keeps_climbing_while_names_are_taken():
 
 
 def test_a_plain_slug_is_accepted():
-    assert validate_name("payments-spike", [], FakeGit(), CFG) == "payments-spike"
+    assert validate_name("payments_spike", [], FakeGit(), CFG) == "payments_spike"
 
 
-@pytest.mark.parametrize("bad", ["", "has space", "-leading", "a" * 41, "sym$bol"])
-def test_names_outside_the_slug_charset_are_refused(bad):
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "",
+        "has space",
+        "_leading",
+        "a" * 41,
+        "sym$bol",
+        "payments-spike",  # a dash is fine in a branch, illegal in an identifier
+        "payments.spike",
+        "Payments",  # packages are lower case
+        "2sum",  # cannot start with a digit
+    ],
+)
+def test_names_that_are_not_python_package_names_are_refused(bad):
     with pytest.raises(MobError, match="usable session name"):
+        validate_name(bad, [], FakeGit(), CFG)
+
+
+@pytest.mark.parametrize("bad", ["class", "lambda", "import"])
+def test_a_name_cannot_be_a_python_keyword(bad):
+    with pytest.raises(MobError, match="keyword"):
+        validate_name(bad, [], FakeGit(), CFG)
+
+
+@pytest.mark.parametrize("bad", ["heapq", "bisect", "queue", "statistics"])
+def test_a_name_cannot_shadow_a_standard_library_module(bad):
+    # These are exactly the words an algorithm session invites, and a package
+    # of that name on sys.path shadows the real module for the whole repo.
+    with pytest.raises(MobError, match="standard library"):
         validate_name(bad, [], FakeGit(), CFG)
 
 
@@ -121,7 +148,16 @@ def test_two_sessions_cannot_share_a_name():
     existing = [session("mob/a", name="spike")]
 
     with pytest.raises(MobError, match="already the name"):
-        validate_name("SPIKE", existing, FakeGit(), CFG)
+        validate_name("spike", existing, FakeGit(), CFG)
+
+
+def test_the_uniqueness_check_ignores_case():
+    # New names are lower case by rule, but a note written before that rule
+    # existed can still carry capitals, and it still has to block a collision.
+    existing = [session("mob/a", name="Spike")]
+
+    with pytest.raises(MobError, match="already the name"):
+        validate_name("spike", existing, FakeGit(), CFG)
 
 
 # -- resolution -------------------------------------------------------------
@@ -154,12 +190,12 @@ def test_an_exact_branch_match_beats_a_name_match():
 
 
 def test_an_unknown_token_suggests_near_misses():
-    sessions = [session("mob/a", name="payments-spike")]
+    sessions = [session("mob/a", name="payments_spike")]
 
     with pytest.raises(MobError, match="no session matches") as caught:
         resolve("payments-spik", sessions, CFG)
 
-    assert "payments-spike" in caught.value.hint
+    assert "payments_spike" in caught.value.hint
 
 
 # -- picking the latest -----------------------------------------------------

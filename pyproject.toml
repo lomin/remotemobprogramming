@@ -37,13 +37,22 @@ base = "main"
 prefix = "mob/"
 remote = "origin"
 notes_ref = "mob"
+# Where `inv leetcode` scaffolds an exercise: sessions/<session name>/.
+sessions_dir = "sessions"
+# Model used to generate exercises.
+model = "sonnet"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers --strict-config"
 # tasks.py lives at the root and is not part of the package, but its argument
-# wiring is worth testing.
+# wiring is worth testing. It is also what lets a scaffolded exercise import
+# itself as sessions.<name>.main.
 pythonpath = ["."]
+python_files = ["test_*.py", "*_test.py"]
+markers = [
+    "complexity: measures how a solution scales; slow, and excluded from the watch loop",
+]
 
 [tool.pytest-watcher]
 runner = "uv"
@@ -52,6 +61,9 @@ patterns = ["*.py"]
 
 [tool.ruff]
 line-length = 100
+# Exercises are generated, and the solution inside them belongs to whoever is
+# solving it. `inv test.self` checks this tool, not the mob's work in progress.
+extend-exclude = ["sessions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

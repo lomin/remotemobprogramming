@@ -103,6 +103,19 @@ class Ui:
         self.warn(f"stashed {count} uncommitted file{plural}{source}")
         self.hint("restore:", "git stash pop")
 
+    # -- exercises --------------------------------------------------------
+
+    def kata_headline(self, title: str, difficulty: str, path: str) -> None:
+        self.console.print(Text("→ ", style="bold").append(Text(title, style="bold cyan")))
+        self.console.print(f"  [dim]{difficulty}[/dim]  [dim]{path}[/dim]")
+
+    def soft_words(self, words: set[str]) -> None:
+        listed = ", ".join(sorted(words))
+        self.warn(f"the brief uses {listed}")
+        self.console.print(
+            "  [dim]ordinary English, but check it does not give too much away[/dim]"
+        )
+
     def backup_note(self, branch: str, commits: int) -> None:
         plural = "" if commits == 1 else "s"
         self.warn(f"diverged — {commits} local commit{plural} set aside")

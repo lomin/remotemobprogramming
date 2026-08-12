@@ -14,6 +14,7 @@ from invoke.parser import Parser, ParserContext
 import tasks
 
 MOB_TASKS = ["mob.start", "mob.branch", "mob.list", "mob.next", "mob.drive", "mob.name"]
+TEST_TASKS = ["test.self", "test.run", "test.submit"]
 
 
 def parse(argv: list[str]) -> dict:
@@ -26,12 +27,17 @@ def parse(argv: list[str]) -> dict:
 def test_the_original_tasks_survive_the_explicit_namespace():
     # Invoke stops auto-collecting once a root namespace exists, so these have
     # to be registered by hand -- and would silently vanish if they were not.
-    assert set(tasks.namespace.tasks) >= {"watch", "test", "lint", "fmt", "check", "install"}
+    assert set(tasks.namespace.tasks) >= {"watch", "lint", "fmt", "install"}
 
 
-@pytest.mark.parametrize("name", MOB_TASKS)
-def test_every_mob_task_is_reachable(name):
+@pytest.mark.parametrize("name", MOB_TASKS + TEST_TASKS)
+def test_every_task_in_a_namespace_is_reachable(name):
     assert tasks.namespace.task_with_config(name)[0] is not None
+
+
+def test_bare_inv_test_runs_the_session_exercise():
+    # The common case during a session, so it gets the short spelling.
+    assert tasks.namespace.task_with_config("test")[0] is tasks.test_run
 
 
 def test_drive_defaults_to_the_latest_session():
@@ -40,11 +46,11 @@ def test_drive_defaults_to_the_latest_session():
 
 @pytest.mark.parametrize("flag", ["-s", "--session"])
 def test_drive_takes_a_session_by_flag(flag):
-    assert parse(["mob.drive", flag, "payments-spike"])["session"] == "payments-spike"
+    assert parse(["mob.drive", flag, "payments_spike"])["session"] == "payments_spike"
 
 
 def test_name_takes_the_new_name_positionally():
-    assert parse(["mob.name", "payments-spike"])["new-name"] == "payments-spike"
+    assert parse(["mob.name", "payments_spike"])["new-name"] == "payments_spike"
 
 
 def test_name_can_target_another_session():

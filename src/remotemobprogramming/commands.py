@@ -4,16 +4,22 @@
 
 from __future__ import annotations
 
+import tempfile
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
 from rich.console import Console
 
+from .claude import Claude
 from .config import Config, resolve_base
 from .errors import MobError
 from .git import Git
+from .kata import SCHEMA, SOFT_WORDS, SYSTEM_PROMPT, Kata, KataRejected, words_in
+from .kata import parse as parse_kata
 from .render import Ui
+from .scaffold import ScaffoldError, build_and_prove
+from .scaffold import install as scaffold_install
 from .session import (
     Note,
     Session,
@@ -254,6 +260,95 @@ class Mob:
         else:
             self.ui.ok(f"in sync with {remote_ref}")
         return session
+
+    def exercise_dir(self, must_exist: bool = True) -> Path:
+        """The current session's exercise package.
+
+        The session has to be named, because the name *is* the package name --
+        that is the whole reason names are constrained to Python identifiers.
+        """
+        session = self._current_session(self._sessions())
+        if not session:
+            branch = self.git.current_branch() or "a detached HEAD"
+            raise MobError(
+                f"{branch} is not a mob session",
+                hint="`inv mob.start` to open one",
+            )
+        if not session.name:
+            raise MobError(
+                f"{session.branch} has no name, and the name is the package name",
+                hint="name it first: inv mob.name <name>",
+            )
+
+        path = self.git.root / self.cfg.sessions_dir / session.name
+        if must_exist and not path.is_dir():
+            raise MobError(
+                f"{session.name} has no exercise yet",
+                hint="scaffold one: inv leetcode '<what you feel like practising>'",
+            )
+        return path
+
+    def leetcode(self, brief: str, attempts: int = 2) -> Kata:
+        """Scaffold an exercise for this session from a free-form brief.
+
+        Generation is not deterministic and the gates are strict, so a rejected
+        attempt is retried once with the reason fed back in -- most rejections
+        are a single fixable slip rather than a model that cannot do the job.
+        """
+        destination = self.exercise_dir(must_exist=False)
+        if destination.exists():
+            raise MobError(
+                f"{destination.name} already has an exercise",
+                hint="fork a session for another one: inv mob.branch --name <name>",
+            )
+
+        complaint: str | None = None
+        for attempt in range(1, attempts + 1):
+            if complaint:
+                self.ui.warn(f"attempt {attempt - 1} rejected: {complaint}")
+                self.ui.info("asking again")
+            try:
+                kata = self._generate(brief, complaint)
+                with tempfile.TemporaryDirectory(prefix="mob-kata-") as workspace:
+                    built = build_and_prove(
+                        kata, destination.name, self.cfg.sessions_dir, Path(workspace)
+                    )
+                    scaffold_install(built, destination)
+                break
+            except (KataRejected, ScaffoldError) as rejection:
+                if attempt == attempts:
+                    raise
+                complaint = rejection.message.removeprefix("the generated exercise was rejected: ")
+
+        if soft := words_in(kata, SOFT_WORDS):
+            self.ui.soft_words(soft)
+
+        self.ui.ok(f"{kata.difficulty} exercise scaffolded")
+        self.ui.kata_headline(
+            kata.title, kata.difficulty, str(destination.relative_to(self.git.root))
+        )
+        self.ui.hint("start the loop:", "inv watch")
+        self.ui.hint("when it is green:", "inv test.submit")
+        return kata
+
+    def _generate(self, brief: str, complaint: str | None = None) -> Kata:
+        existing = sorted(
+            path.name
+            for path in (self.git.root / self.cfg.sessions_dir).glob("*")
+            if path.is_dir() and not path.name.startswith((".", "_"))
+        )
+        prompt = [f"Design one exercise. The mob asked for: {brief}"]
+        if existing:
+            prompt.append(
+                "They have already worked through these, so pick something else: "
+                + ", ".join(existing)
+            )
+        if complaint:
+            prompt.append(f"A previous attempt was thrown away because {complaint}. Avoid that.")
+
+        self.ui.info(f"asking claude ({self.cfg.model}) for an exercise…")
+        payload = Claude(model=self.cfg.model).ask("\n\n".join(prompt), SYSTEM_PROMPT, SCHEMA)
+        return parse_kata(payload)
 
     def name(self, new_name: str, target: str | None = None) -> Session:
         sessions = self._sessions()

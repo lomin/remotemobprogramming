@@ -54,15 +54,15 @@ def test_a_session_can_be_driven_by_its_branch_name(alice, bob):
 
 
 def test_a_session_can_be_driven_by_its_friendly_name(alice, bob):
-    session = alice.mob.start(name="payments-spike")
+    session = alice.mob.start(name="payments_spike")
 
-    bob.mob.drive("payments-spike")
+    bob.mob.drive("payments_spike")
 
     assert bob.branch() == session.branch
 
 
 def test_driving_something_unknown_says_so(alice, bob):
-    alice.mob.start(name="payments-spike")
+    alice.mob.start(name="payments_spike")
 
     with pytest.raises(MobError, match="no session matches"):
         bob.mob.drive("nonsense")

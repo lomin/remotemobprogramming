@@ -72,10 +72,10 @@ def test_a_new_session_has_no_parent(alice):
 
 
 def test_start_accepts_a_name_up_front(alice):
-    session = alice.mob.start(name="payments-spike")
+    session = alice.mob.start(name="payments_spike")
 
-    assert session.name == "payments-spike"
-    assert note_json(alice, session.anchor)["name"] == "payments-spike"
+    assert session.name == "payments_spike"
+    assert note_json(alice, session.anchor)["name"] == "payments_spike"
 
 
 def test_two_sessions_started_in_the_same_second_do_not_collide(alice):
@@ -208,18 +208,18 @@ def test_next_refuses_on_a_branch_that_is_not_a_session(alice):
 def test_name_labels_the_session_you_are_on(alice):
     session = alice.mob.start()
 
-    alice.mob.name("payments-spike")
+    alice.mob.name("payments_spike")
 
-    assert note_json(alice, session.anchor)["name"] == "payments-spike"
+    assert note_json(alice, session.anchor)["name"] == "payments_spike"
 
 
 def test_a_session_can_be_renamed_without_disturbing_its_lineage(alice):
     parent = alice.mob.start()
     child = alice.mob.branch()
 
-    alice.mob.name("second-thoughts", target=parent.branch)
+    alice.mob.name("second_thoughts", target=parent.branch)
 
-    assert note_json(alice, parent.anchor)["name"] == "second-thoughts"
+    assert note_json(alice, parent.anchor)["name"] == "second_thoughts"
     assert note_json(alice, child.anchor)["parent"] == parent.anchor
 
 
@@ -265,11 +265,11 @@ def test_a_fresh_clone_rebuilds_the_tree_from_notes_alone(alice, clone_as):
 
 
 def test_list_marks_the_session_you_are_on(alice):
-    alice.mob.start(name="current-thread")
+    alice.mob.start(name="current_thread")
 
     alice.mob.list()
 
-    assert "current-thread" in alice.text
+    assert "current_thread" in alice.text
     assert "●" in alice.text
 
 
@@ -277,6 +277,37 @@ def test_list_says_so_when_there_is_nothing_yet(alice):
     alice.mob.list()
 
     assert "no mob sessions yet" in alice.text
+
+
+# -- the exercise directory -------------------------------------------------
+
+
+def test_the_exercise_directory_is_named_after_the_session(alice):
+    alice.mob.start(name="tidal_ledger")
+    (alice.path / "sessions" / "tidal_ledger").mkdir(parents=True)
+
+    assert alice.mob.exercise_dir() == alice.path / "sessions" / "tidal_ledger"
+
+
+def test_an_unnamed_session_has_nowhere_to_put_an_exercise(alice):
+    alice.mob.start()
+
+    with pytest.raises(MobError, match="the name is the package name"):
+        alice.mob.exercise_dir()
+
+
+def test_a_session_without_an_exercise_says_how_to_get_one(alice):
+    alice.mob.start(name="tidal_ledger")
+
+    with pytest.raises(MobError, match="no exercise yet") as caught:
+        alice.mob.exercise_dir()
+
+    assert "inv leetcode" in caught.value.hint
+
+
+def test_there_is_no_exercise_outside_a_session(alice):
+    with pytest.raises(MobError, match="not a mob session"):
+        alice.mob.exercise_dir()
 
 
 def _discover(mobber):

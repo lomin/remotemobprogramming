@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import difflib
 import json
+import keyword
 import re
+import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -23,7 +25,11 @@ from .git import Git
 
 SCHEMA_VERSION = 1
 TIMESTAMP_FMT = "%Y%m%dT%H%M%SZ"
-NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$")
+# A session name is also a Python package name: `inv leetcode` scaffolds its
+# exercise into sessions/<name>/, and the test module imports it. So the name
+# has to be a legal, idiomatic module identifier -- no dashes, no dots, no
+# leading digit -- which is stricter than a branch name needs to be.
+NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 
 
 def anchor_message(branch: str) -> str:
@@ -412,7 +418,18 @@ def validate_name(name: str, sessions: list[Session], git: Git, cfg: Config) -> 
     if not NAME_RE.match(candidate):
         raise MobError(
             f"{name!r} is not a usable session name",
-            hint="letters, digits, dot, dash, underscore; up to 40 characters",
+            hint="lower case, starting with a letter, then letters, digits or "
+            "underscores; up to 40 characters — it doubles as a package name",
+        )
+    if keyword.iskeyword(candidate):
+        raise MobError(
+            f"{candidate!r} is a Python keyword",
+            hint="a session name has to be importable as a package",
+        )
+    if candidate in sys.stdlib_module_names:
+        raise MobError(
+            f"{candidate!r} is a standard library module",
+            hint=f"a package called {candidate!r} would shadow it for the whole repository",
         )
     if git.branch_exists(candidate) or git.remote_branch_exists(candidate, cfg.remote):
         raise MobError(

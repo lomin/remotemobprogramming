@@ -1,3 +1,5 @@
+from shlex import quote
+
 from invoke import Collection, Exit, task
 
 from remotemobprogramming.commands import Mob
@@ -5,16 +7,39 @@ from remotemobprogramming.errors import MobError
 from remotemobprogramming.render import Ui
 
 
+def _run(action):
+    """Turn a MobError into a readable message and a non-zero exit."""
+    try:
+        return action(Mob())
+    except MobError as error:
+        Ui().error(error.message, error.hint)
+        raise Exit(code=1) from None
+
+
+def _exercise():
+    """The current session's exercise directory, as a shell-safe path."""
+    return quote(str(_run(lambda mob: mob.exercise_dir())))
+
+
 @task
 def watch(c):
-    """Run the TDD loop: rerun tests on every save, stop at first failure."""
-    c.run("uv run ptw .", pty=True)
+    """Run the TDD loop over the current session's exercise."""
+    # The scaling checks are minutes of measurement, so they have no business
+    # in a loop that fires on every keystroke.
+    path = _exercise()
+    c.run(f"uv run ptw {path} {path} -m 'not complexity'", pty=True)
 
 
-@task
-def test(c):
-    """Run the full test suite once."""
-    c.run("uv run pytest", pty=True)
+@task(
+    positional=["brief"],
+    help={"brief": "What you feel like practising, in your own words"},
+)
+def leetcode(c, brief):
+    """Scaffold an exercise for this session from a free-form brief.
+
+    inv leetcode 'prefix sums, sliding windows, something on the hard side'
+    """
+    _run(lambda mob: mob.leetcode(brief))
 
 
 @task
@@ -30,32 +55,42 @@ def fmt(c):
 
 
 @task
-def check(c):
-    """Everything CI would run: format check, lint, tests."""
-    c.run("uv run ruff format --check .", pty=True)
-    c.run("uv run ruff check .", pty=True)
-    c.run("uv run pytest", pty=True)
-
-
-@task
 def install(c):
     """Sync the venv with pyproject.toml / uv.lock."""
     c.run("uv sync", pty=True)
+
+
+# --- tests -----------------------------------------------------------------
+#
+# Three audiences, three scopes. `self` is for people working on this tool;
+# `run` and `submit` are for the mob working through an exercise, and never
+# see another session's.
+
+
+@task(name="self")
+def test_self(c):
+    """Check the mob tooling itself: format, lint, and its own suite."""
+    c.run("uv run ruff format --check .", pty=True)
+    c.run("uv run ruff check .", pty=True)
+    c.run("uv run pytest tests", pty=True)
+
+
+@task(name="run", default=True)
+def test_run(c):
+    """Run this session's exercise, without the scaling checks."""
+    c.run(f"uv run pytest {_exercise()} -m 'not complexity'", pty=True)
+
+
+@task(name="submit")
+def test_submit(c):
+    """Run this session's exercise in full, scaling checks included."""
+    c.run(f"uv run pytest {_exercise()}", pty=True)
 
 
 # --- mob sessions ----------------------------------------------------------
 #
 # A session is a branch; a handover is a commit on it. Only `start` and
 # `branch` create branches.
-
-
-def _run(action):
-    """Turn a MobError into a readable message and a non-zero exit."""
-    try:
-        return action(Mob())
-    except MobError as error:
-        Ui().error(error.message, error.hint)
-        raise Exit(code=1) from None
 
 
 @task(help={"name": "Optional friendly name for the session", "base": "Branch to open from"})
@@ -119,7 +154,13 @@ mob.add_task(mob_next)
 mob.add_task(mob_drive)
 mob.add_task(mob_name)
 
+test = Collection("test")
+test.add_task(test_self)
+test.add_task(test_run)
+test.add_task(test_submit)
+
 # Invoke stops auto-collecting module-level tasks once an explicit namespace
 # exists, so every task has to be added here by hand.
-namespace = Collection(watch, test, lint, fmt, check, install)
+namespace = Collection(watch, leetcode, lint, fmt, install)
 namespace.add_collection(mob)
+namespace.add_collection(test)

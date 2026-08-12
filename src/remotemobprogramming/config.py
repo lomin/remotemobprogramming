@@ -19,6 +19,12 @@ class Config:
     prefix: str = "mob/"
     remote: str = "origin"
     notes_ref: str = "mob"
+    # Where `inv leetcode` scaffolds an exercise. A container rather than the
+    # repository root: a package sitting at the root would be importable as a
+    # top-level name, and a session called `heapq` would then shadow the real
+    # module for everything in the repository.
+    sessions_dir: str = "sessions"
+    model: str = "sonnet"
 
     @classmethod
     def load(cls, root: Path) -> Config:
@@ -33,6 +39,8 @@ class Config:
             prefix=section.get("prefix", cls.prefix),
             remote=section.get("remote", cls.remote),
             notes_ref=section.get("notes_ref", cls.notes_ref),
+            sessions_dir=section.get("sessions_dir", cls.sessions_dir),
+            model=section.get("model", cls.model),
         )
 
     @property
