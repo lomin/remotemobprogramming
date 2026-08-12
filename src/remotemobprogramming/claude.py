@@ -67,7 +67,16 @@ class Claude:
 
         try:
             result = subprocess.run(
-                argv, capture_output=True, text=True, timeout=self.timeout, check=False
+                argv,
+                capture_output=True,
+                text=True,
+                # The CLI answers in UTF-8 JSON. Decoding that with the locale's
+                # codec, as `text=True` would on Windows, does not fail loudly --
+                # it quietly turns every dash and quotation mark in the exercise
+                # into mojibake that then gets written into the mob's files.
+                encoding="utf-8",
+                timeout=self.timeout,
+                check=False,
             )
         except subprocess.TimeoutExpired:
             raise ClaudeError(

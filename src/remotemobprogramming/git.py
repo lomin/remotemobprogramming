@@ -61,6 +61,11 @@ class Git:
             input=stdin,
             capture_output=True,
             text=True,
+            # git speaks UTF-8 on every platform; `text=True` alone would decode
+            # with the locale's codec, which on Windows is cp1252. Session names
+            # and commit messages are the mob's own prose, so that is a matter of
+            # time rather than of luck.
+            encoding="utf-8",
         )
         result = Result(proc.returncode, proc.stdout, proc.stderr)
         if check and not result.ok:

@@ -177,16 +177,26 @@ def render_test(kata: Kata, package: str) -> str:
 
 
 def write_package(kata: Kata, root: Path, name: str, container: str, *, solved: bool) -> Path:
-    """Lay the exercise out under `root/<container>/<name>/`."""
+    """Lay the exercise out under `root/<container>/<name>/`.
+
+    Every write says `utf-8` rather than taking the default. Python reads source
+    files as UTF-8 whatever the platform, but `write_text` encodes with the
+    locale's -- cp1252 on a stock Windows -- and a generated exercise is full of
+    prose. One em dash in a title is enough to make the file it lands in
+    unparseable, which fails the first gate for a reason that has nothing to do
+    with the exercise.
+    """
     package_root = root / container
     package_root.mkdir(parents=True, exist_ok=True)
-    (package_root / "__init__.py").write_text(HEADER)
+    (package_root / "__init__.py").write_text(HEADER, encoding="utf-8")
 
     directory = package_root / name
     directory.mkdir(exist_ok=True)
-    (directory / "__init__.py").write_text(HEADER)
-    (directory / "main.py").write_text(render_main(kata, solved=solved))
-    (directory / f"{name}_test.py").write_text(render_test(kata, f"{container}.{name}"))
+    (directory / "__init__.py").write_text(HEADER, encoding="utf-8")
+    (directory / "main.py").write_text(render_main(kata, solved=solved), encoding="utf-8")
+    (directory / f"{name}_test.py").write_text(
+        render_test(kata, f"{container}.{name}"), encoding="utf-8"
+    )
     return directory
 
 
@@ -213,11 +223,15 @@ class Run:
 
 def run_pytest(root: Path, target: Path, *extra: str, timeout: float = 600.0) -> Run:
     """Run pytest against the temporary copy, isolated from this repository."""
-    (root / "pytest.ini").write_text(PYTEST_INI)
+    (root / "pytest.ini").write_text(PYTEST_INI, encoding="utf-8")
     environment = {
         **os.environ,
         "PYTHONPATH": str(root),
         "PYTHONDONTWRITEBYTECODE": "1",
+        # The report we are about to read quotes the exercise back at us, em
+        # dashes and all. Writing to a pipe, the child would otherwise encode it
+        # with the locale's codec while we decode as UTF-8 below.
+        "PYTHONIOENCODING": "utf-8",
     }
     try:
         # This interpreter, not `uv run`: we are already inside the environment
@@ -228,6 +242,7 @@ def run_pytest(root: Path, target: Path, *extra: str, timeout: float = 600.0) ->
             cwd=root,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=timeout,
             env=environment,
             check=False,
@@ -304,7 +319,7 @@ def build_and_prove(
 
     # Formatted only here, so the second gate validates the exact text that
     # gets installed rather than something ruff has yet to touch.
-    (directory / "main.py").write_text(render_main(kata, solved=False))
+    (directory / "main.py").write_text(render_main(kata, solved=False), encoding="utf-8")
     format_with_ruff(workspace)
     with progress("checking the skeleton fails"):
         gate_skeleton(workspace, directory)
@@ -320,5 +335,5 @@ def install(source: Path, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     init = destination.parent / "__init__.py"
     if not init.exists():
-        init.write_text(HEADER)
+        init.write_text(HEADER, encoding="utf-8")
     shutil.copytree(source, destination)
