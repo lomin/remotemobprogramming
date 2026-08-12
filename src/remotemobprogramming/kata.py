@@ -18,6 +18,7 @@ from __future__ import annotations
 import ast
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, NoReturn
 
@@ -26,6 +27,57 @@ from .errors import MobError
 
 DIFFICULTIES = ("easy", "medium", "hard")
 IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]*$")
+# The title line `render_main` writes, read back to find out what a repository
+# has already produced.
+TITLE_LINE = re.compile(r"^# (?P<title>.+?)  \((?:easy|medium|hard)\)$", re.MULTILINE)
+
+# Settings, not problem types. The model is asked to take one, which pushes the
+# *framing* apart without constraining the algorithm underneath -- a stateless
+# call given the same brief twice will otherwise land on the same handful of
+# canonical problems however high the sampling temperature is. The list is long
+# and the suggestion is advisory, so exercises do not come out formulaic.
+SETTINGS = (
+    "tides and harbours",
+    "beekeeping",
+    "railway timetables",
+    "glacier surveys",
+    "a lending library",
+    "brewing",
+    "cartography",
+    "textile mills",
+    "forestry",
+    "postal sorting",
+    "archaeological digs",
+    "orchestral rehearsals",
+    "fish markets",
+    "letterpress printing",
+    "pottery kilns",
+    "canal locks",
+    "sheep farming",
+    "lighthouse keeping",
+    "seed banks",
+    "a mountain rescue service",
+    "vineyards",
+    "clockmaking",
+    "salt pans",
+    "birdwatching",
+    "quarrying",
+    "a night bus network",
+    "cheese caves",
+    "windmills",
+    "reed beds",
+    "a travelling circus",
+    "peat bogs",
+    "bell ringing",
+    "oyster beds",
+    "avalanche patrols",
+    "a seed catalogue",
+    "kite festivals",
+    "ferry crossings",
+    "hedgerow surveys",
+    "a village bakery",
+    "star charts",
+)
 
 # Phrases that can only be there to name the technique. A statement containing
 # one of these is thrown away. The signature is exempt -- it has to say
@@ -381,6 +433,86 @@ def validate(kata: Kata) -> None:
 
     if found := words_in(kata, TECHNIQUE_WORDS):
         _reject(f"the statement gives the technique away: {', '.join(sorted(found))}")
+
+
+def build_prompt(
+    brief: str,
+    *,
+    already_done: Sequence[str] = (),
+    settings: Sequence[str] = (),
+    nonce: int = 0,
+    complaint: str | None = None,
+) -> str:
+    """The user turn.
+
+    The nonce and the settings are the whole answer to "it is stateless, so how
+    does it not repeat itself". The CLI exposes no temperature or seed, and
+    sampling alone does not help much anyway: asked twice for a sliding-window
+    problem a model lands on the same canonical one, because that is where the
+    probability mass is. Moving the *prompt* is what moves the answer.
+    """
+    parts = [f"Design one exercise. The mob asked for: {brief}"]
+    if settings:
+        listed = "; ".join(settings)
+        parts.append(
+            f"For the setting, take one of these and run with it: {listed}. "
+            "Or invent something else entirely, as long as it is nothing like "
+            "the ones already produced below."
+        )
+    if already_done:
+        listed = "\n".join(f"  - {title}" for title in already_done)
+        parts.append(
+            "This mob has already worked through the following. Do not repeat "
+            f"any of them, in substance or in setting:\n{listed}"
+        )
+    if complaint:
+        parts.append(f"A previous attempt was thrown away because {complaint}. Avoid that.")
+    # Last, so it is the freshest thing in context.
+    parts.append(f"Variation {nonce}. Make this one distinct.")
+    return "\n\n".join(parts)
+
+
+def summarise(source: str, limit: int = 240) -> str | None:
+    """One line describing an exercise, read back out of its `main.py`.
+
+    Nothing is stored to make this work: the scaffolded package *is* the record,
+    and every past exercise is already sitting in git. Titles alone are not
+    enough to prevent a repeat -- "The Kiln's Steady Soak" says nothing about
+    what had to be computed -- so this carries the method name and the task
+    sentence as well, which is what the next exercise has to differ from.
+    """
+    found = TITLE_LINE.search(source)
+    if not found:
+        return None
+
+    comments: list[str] = []
+    for line in source.splitlines():
+        if line.startswith("#"):
+            comments.append(line[1:].strip())
+        elif comments and not line.strip():
+            continue
+        elif comments:
+            break
+
+    paragraphs: list[str] = []
+    current: list[str] = []
+    for line in comments:
+        if line:
+            current.append(line)
+        elif current:
+            paragraphs.append(" ".join(current))
+            current = []
+    if current:
+        paragraphs.append(" ".join(current))
+
+    # The task is the last paragraph before the constraints, which is where
+    # `render_main` puts it.
+    body = [p for p in paragraphs[1:] if not p.startswith("Constraints:")]
+    task = body[-1] if body else ""
+
+    entry = re.search(r"def (\w+)\(self", source)
+    method = f" [{entry.group(1)}]" if entry else ""
+    return f"{found.group('title')}{method}: {task[:limit]}"
 
 
 def prose_of(kata: Kata) -> str:

@@ -16,7 +16,9 @@ from remotemobprogramming.kata import (
     SCHEMA,
     SOFT_WORDS,
     KataRejected,
+    build_prompt,
     parse,
+    summarise,
     words_in,
 )
 
@@ -271,6 +273,79 @@ def test_the_signature_may_say_what_the_story_may_not():
 
     assert "list[int]" in kata.solution
     assert "list" not in kata.story
+
+
+# -- the prompt -------------------------------------------------------------
+
+
+def test_the_brief_is_passed_through_verbatim():
+    assert "prefix sums, on the hard side" in build_prompt("prefix sums, on the hard side")
+
+
+def test_the_nonce_is_last_so_it_is_freshest_in_context():
+    prompt = build_prompt("anything", nonce=4712)
+
+    assert prompt.rstrip().endswith("Variation 4712. Make this one distinct.")
+
+
+def test_two_prompts_for_the_same_brief_differ():
+    assert build_prompt("anything", nonce=1) != build_prompt("anything", nonce=2)
+
+
+def test_the_settings_are_offered_rather_than_imposed():
+    # A mandatory setting list would make every exercise feel stamped out.
+    prompt = build_prompt("anything", settings=["beekeeping", "canal locks"])
+
+    assert "beekeeping" in prompt
+    assert "invent something else entirely" in prompt
+
+
+def test_what_has_been_done_before_is_listed_out():
+    prompt = build_prompt("anything", already_done=["The Tidal Ledger", "The Beekeeper's Round"])
+
+    assert "  - The Tidal Ledger" in prompt
+    assert "Do not repeat" in prompt
+
+
+def test_a_rejection_reason_is_fed_back():
+    prompt = build_prompt("anything", complaint="it named the technique")
+
+    assert "it named the technique" in prompt
+
+
+def test_a_past_exercise_is_read_back_out_of_its_own_package():
+    # Nothing is stored to make this work. The scaffolded package is the record,
+    # so a later session learns what an earlier one produced by reading it.
+    from remotemobprogramming.scaffold import render_main
+
+    summary = summarise(render_main(parse(payload())))
+
+    assert summary.startswith("The Tidal Ledger [calmest_stretch]:")
+    assert "smallest difference between the highest and lowest reading" in summary
+
+
+def test_the_summary_carries_the_task_and_not_just_the_name():
+    # A title alone cannot prevent a repeat: "The Kiln's Steady Soak" says
+    # nothing about what had to be computed.
+    summary = summarise(
+        "# The Kiln's Steady Soak  (medium)\n"
+        "#\n"
+        "# Once upon a time in a pottery.\n"
+        "#\n"
+        "# Return the longest stretch held within two degrees.\n"
+        "#\n"
+        "# Constraints:\n"
+        "#   - at most a million readings\n"
+        "\n\nclass Solution:\n    def steady_soak(self, temperatures: list[int]) -> int:\n"
+    )
+
+    assert summary == (
+        "The Kiln's Steady Soak [steady_soak]: Return the longest stretch held within two degrees."
+    )
+
+
+def test_something_that_is_not_an_exercise_summarises_to_nothing():
+    assert summarise("# some ordinary comment\n# another (medium) aside") is None
 
 
 # -- the schema itself ------------------------------------------------------

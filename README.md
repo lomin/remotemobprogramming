@@ -169,6 +169,29 @@ answer exists, but the statement is a story about a harbour master or a courier,
 someone who doesn't program. Naming a technique, a data structure, or a complexity gets the whole
 exercise thrown away and regenerated.
 
+### Not getting the same problem twice
+
+The call is stateless and the CLI exposes no temperature or seed, so an identical prompt tends
+to produce an identical answer — a model asked twice for a sliding-window problem lands on the
+same canonical one, because that's where the probability mass is. Moving the *prompt* is what
+moves the answer, so each call carries a random variation number, four randomly drawn settings
+(offered, not imposed — "or invent something else entirely"), and a list of what this mob has
+already done.
+
+Nothing is stored to make that list. The scaffolded packages **are** the record: every past
+`sessions/*/main.py` is read straight out of git, across *all* session branches rather than just
+your working tree, so a sibling session's exercise counts even though its files aren't checked
+out. Each is summarised down to its title, method name and task sentence — a title alone can't
+prevent a repeat, since "The Kiln's Steady Soak" says nothing about what had to be computed.
+
+Three runs of the same brief, `'sliding windows or two pointers — medium'`:
+
+| | Title | Method | Complexity |
+|---|---|---|---|
+| 1 | The Kiln's Steady Soak | `longest_soak` | n vs n² |
+| 2 | The Firn Quota | `shortest_quota_run` | n vs n² |
+| 3 | The Wide Lock at Whitmoor Bottom | `fewest_lock_fillings` | n log n vs n² |
+
 ### Nothing lands unless it's proved
 
 The generated package is built in a temporary directory and put through two gates first:
@@ -180,10 +203,14 @@ The generated package is built in a temporary directory and put through two gate
    fails.** Collecting proves the skeleton is well-formed; all-red proves no test is vacuous — a
    test that passes against an empty method asserts nothing and will go on asserting nothing.
 
-Only then is it copied into `sessions/`. A rejected attempt is retried once with the reason fed
-back to Claude. The solution is never written to disk: `main.py` is rebuilt from the syntax tree
-with the body replaced, and the imports and private helpers dropped, because
-`from collections import deque` at the top of a skeleton announces the approach.
+Only then is it copied into `sessions/`. A rejected attempt is retried, up to three, with the
+reason *and the tail of pytest's output* fed back — the headline alone would ask the model to
+guess which of its own tests was wrong. The solution is never written to disk: `main.py` is
+rebuilt from the syntax tree with the body replaced, and the imports and private helpers dropped,
+because `from collections import deque` at the top of a skeleton announces the approach.
+
+Exercises are generated with Opus by default (`[tool.mob] model`). Sonnet works and is cheaper,
+but in testing it needed a retry on most generations, which costs a call anyway.
 
 ### The scaling check
 

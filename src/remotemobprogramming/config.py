@@ -24,7 +24,7 @@ class Config:
     # top-level name, and a session called `heapq` would then shadow the real
     # module for everything in the repository.
     sessions_dir: str = "sessions"
-    model: str = "sonnet"
+    model: str = "opus"
 
     @classmethod
     def load(cls, root: Path) -> Config:

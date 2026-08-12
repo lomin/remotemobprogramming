@@ -115,14 +115,31 @@ def test_the_brief_reaches_claude(alice, fake_claude):
     assert "prefix sums, on the hard side" in fake_claude.prompts[0]
 
 
-def test_exercises_already_done_are_named_so_they_are_not_repeated(alice, fake_claude):
-    fake_claude.queue(SOLVED)
-    (alice.path / "sessions" / "parcel_run").mkdir(parents=True)
-    alice.mob.start(name="tidal_ledger")
+def test_an_exercise_from_another_session_is_not_repeated(alice, fake_claude):
+    # Sessions are branches, so the working tree only ever shows the current
+    # one's exercise. The sibling session's is exactly the one not to repeat.
+    fake_claude.queue(SOLVED, SOLVED)
+    alice.mob.start(name="parcel_run")
+    alice.mob.leetcode("anything")
+    alice.mob.next(message="scaffold the exercise")
 
+    alice.mob.start(name="tidal_ledger")
+    assert not (alice.path / "sessions" / "parcel_run").exists(), "precondition: a fresh tree"
     alice.mob.leetcode("anything")
 
-    assert "parcel_run" in fake_claude.prompts[0]
+    assert "The Tidal Ledger" in fake_claude.prompts[1]
+
+
+def test_two_briefs_the_same_do_not_produce_the_same_prompt(alice, fake_claude):
+    # The CLI exposes no temperature or seed, so if the prompt is identical the
+    # answer will tend to be too, however stateless the call is.
+    fake_claude.queue(SOLVED, SOLVED)
+    alice.mob.start(name="parcel_run")
+    alice.mob.leetcode("sliding windows")
+    alice.mob.branch(name="tidal_ledger")
+    alice.mob.leetcode("sliding windows")
+
+    assert fake_claude.prompts[0] != fake_claude.prompts[1]
 
 
 def test_the_mob_is_told_what_to_run_next(alice, fake_claude):
@@ -161,21 +178,42 @@ def test_a_rejected_attempt_is_retried_with_the_reason(alice, fake_claude):
     assert (alice.path / "sessions" / "tidal_ledger" / "main.py").exists()
 
 
-def test_a_second_rejection_gives_up_rather_than_burning_tokens(alice, fake_claude):
+def test_the_reason_sent_back_carries_the_detail_not_just_the_headline(alice, fake_claude):
+    # "does not pass against its own solution" alone asks the model to guess
+    # which of its own tests was wrong.
+    wrong = broken(
+        examples=[
+            {
+                "name": "the_worked_case",
+                "why": "from the ledger",
+                "code": "assert Solution().calmest_stretch([4, 9, 1, 2], 2) == 999",
+            },
+            *SOLVED["examples"][1:],
+        ]
+    )
+    fake_claude.queue(wrong, SOLVED)
+    alice.mob.start(name="tidal_ledger")
+
+    alice.mob.leetcode("anything")
+
+    assert "the_worked_case" in fake_claude.prompts[1]
+
+
+def test_repeated_rejection_gives_up_rather_than_burning_tokens(alice, fake_claude):
     giveaway = broken(task="Return the maximum sum of any subarray of that length.")
-    fake_claude.queue(giveaway, giveaway)
+    fake_claude.queue(giveaway, giveaway, giveaway)
     alice.mob.start(name="tidal_ledger")
 
     with pytest.raises(KataRejected, match="gives the technique away"):
         alice.mob.leetcode("anything")
 
-    assert len(fake_claude.prompts) == 2
+    assert len(fake_claude.prompts) == 3
 
 
 def test_nothing_is_left_behind_when_generation_fails(alice, fake_claude):
     # A half-written package would be swept up by the next `mob.next`.
     giveaway = broken(story="Slide a sliding window along the ledger.")
-    fake_claude.queue(giveaway, giveaway)
+    fake_claude.queue(giveaway, giveaway, giveaway)
     alice.mob.start(name="tidal_ledger")
 
     with pytest.raises(KataRejected):

@@ -40,7 +40,7 @@ notes_ref = "mob"
 # Where `inv leetcode` scaffolds an exercise: sessions/<session name>/.
 sessions_dir = "sessions"
 # Model used to generate exercises.
-model = "sonnet"
+model = "opus"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

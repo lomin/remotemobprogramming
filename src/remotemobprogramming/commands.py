@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import random
 import tempfile
 from collections.abc import Callable
 from datetime import datetime
@@ -15,7 +16,17 @@ from .claude import Claude
 from .config import Config, resolve_base
 from .errors import MobError
 from .git import Git
-from .kata import SCHEMA, SOFT_WORDS, SYSTEM_PROMPT, Kata, KataRejected, words_in
+from .kata import (
+    SCHEMA,
+    SETTINGS,
+    SOFT_WORDS,
+    SYSTEM_PROMPT,
+    Kata,
+    KataRejected,
+    build_prompt,
+    summarise,
+    words_in,
+)
 from .kata import parse as parse_kata
 from .render import Ui
 from .scaffold import ScaffoldError, build_and_prove
@@ -44,6 +55,7 @@ class Mob:
         cfg: Config | None = None,
         ui: Ui | None = None,
         clock: Callable[[], datetime] = utcnow,
+        rng: random.Random | None = None,
     ) -> None:
         self.git = git or Git()
         root = self.git.root
@@ -51,6 +63,9 @@ class Mob:
         self.cfg = cfg or Config.load(root)
         self.ui = ui or Ui(Console())
         self.clock = clock
+        # Seeded from the system, so two mobs asking for the same thing on the
+        # same day do not get the same exercise.
+        self.rng = rng or random.Random()
 
     # -- helpers ----------------------------------------------------------
 
@@ -288,7 +303,7 @@ class Mob:
             )
         return path
 
-    def leetcode(self, brief: str, attempts: int = 2) -> Kata:
+    def leetcode(self, brief: str, attempts: int = 3) -> Kata:
         """Scaffold an exercise for this session from a free-form brief.
 
         Generation is not deterministic and the gates are strict, so a rejected
@@ -319,6 +334,11 @@ class Mob:
                 if attempt == attempts:
                     raise
                 complaint = rejection.message.removeprefix("the generated exercise was rejected: ")
+                # The hint carries the tail of pytest's output, which is what
+                # actually says *which* test went wrong and how. Sending back
+                # only the headline asks the model to guess at its own mistake.
+                if rejection.hint:
+                    complaint += f"\n\n{rejection.hint}"
 
         if soft := words_in(kata, SOFT_WORDS):
             self.ui.soft_words(soft)
@@ -331,23 +351,44 @@ class Mob:
         self.ui.hint("when it is green:", "inv test.submit")
         return kata
 
-    def _generate(self, brief: str, complaint: str | None = None) -> Kata:
-        existing = sorted(
-            path.name
-            for path in (self.git.root / self.cfg.sessions_dir).glob("*")
-            if path.is_dir() and not path.name.startswith((".", "_"))
-        )
-        prompt = [f"Design one exercise. The mob asked for: {brief}"]
-        if existing:
-            prompt.append(
-                "They have already worked through these, so pick something else: "
-                + ", ".join(existing)
-            )
-        if complaint:
-            prompt.append(f"A previous attempt was thrown away because {complaint}. Avoid that.")
+    def past_exercises(self, limit: int = 60) -> list[str]:
+        """Every exercise this repository has ever produced, on any branch.
 
+        Reading the working tree would only find the current branch's, and
+        sessions are branches -- so the exercise a sibling session generated
+        last week, which is exactly the one not to repeat, would be invisible.
+        """
+        refs = self.git.lines(
+            "for-each-ref",
+            "--format=%(refname)",
+            f"refs/heads/{self.cfg.prefix}",
+            f"refs/remotes/{self.remote}/{self.cfg.prefix}",
+        )
+        seen: dict[str, str] = {}
+        for ref in refs:
+            for path in self.git.lines(
+                "ls-tree", "-r", "--name-only", ref, "--", self.cfg.sessions_dir
+            ):
+                if path.endswith("/main.py"):
+                    seen.setdefault(path, ref)
+
+        summaries: list[str] = []
+        for path, ref in sorted(seen.items())[:limit]:
+            source = self.git.run("show", f"{ref}:{path}", check=False)
+            if source.ok and (summary := summarise(source.stdout)):
+                summaries.append(summary)
+        return summaries
+
+    def _generate(self, brief: str, complaint: str | None = None) -> Kata:
+        prompt = build_prompt(
+            brief,
+            already_done=self.past_exercises(),
+            settings=self.rng.sample(SETTINGS, k=4),
+            nonce=self.rng.randrange(1000, 10_000),
+            complaint=complaint,
+        )
         self.ui.info(f"asking claude ({self.cfg.model}) for an exercise…")
-        payload = Claude(model=self.cfg.model).ask("\n\n".join(prompt), SYSTEM_PROMPT, SCHEMA)
+        payload = Claude(model=self.cfg.model).ask(prompt, SYSTEM_PROMPT, SCHEMA)
         return parse_kata(payload)
 
     def name(self, new_name: str, target: str | None = None) -> Session:
