@@ -142,6 +142,21 @@ def test_two_briefs_the_same_do_not_produce_the_same_prompt(alice, fake_claude):
     assert fake_claude.prompts[0] != fake_claude.prompts[1]
 
 
+def test_the_long_silences_say_what_they_are_waiting_on(alice, fake_claude):
+    # Minutes pass between these lines on a real run -- the CLI call, then three
+    # pytest runs one of which measures how the solution scales.
+    fake_claude.queue(SOLVED)
+    alice.mob.start(name="tidal_ledger")
+    alice.clear()
+
+    alice.mob.leetcode("anything")
+
+    assert "reading past exercises" in alice.text
+    assert "asking claude (opus) for an exercise" in alice.text
+    assert "checking it passes with its own solution" in alice.text
+    assert "checking the skeleton fails" in alice.text
+
+
 def test_the_mob_is_told_what_to_run_next(alice, fake_claude):
     fake_claude.queue(SOLVED)
     alice.mob.start(name="tidal_ledger")

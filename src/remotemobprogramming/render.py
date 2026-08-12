@@ -9,16 +9,32 @@ columns across depths.
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 
 from rich import box
 from rich.console import Console
+from rich.status import Status
 from rich.table import Table
 from rich.text import Text
 
 from .session import Session
 from .tree import Node
 from .worktree import Stashed
+
+# A step faster than this leaves no trace. Short commands stay quiet; the ones
+# that made you wait read back afterwards as a log of where the time went.
+LINGER = 5.0
+
+
+def duration(seconds: float) -> str:
+    """Elapsed time, as short as it can be said."""
+    if seconds < 60:
+        return f"{seconds:.0f}s"
+    minutes, rest = divmod(int(seconds), 60)
+    return f"{minutes}m{rest:02d}s"
 
 
 def ago(when: datetime, now: datetime | None = None) -> str:
@@ -60,8 +76,69 @@ def flatten(roots: list[Node]) -> list[tuple[Node, str]]:
 class Ui:
     """All output goes through here so tests can capture it."""
 
-    def __init__(self, console: Console | None = None) -> None:
+    def __init__(
+        self,
+        console: Console | None = None,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         self.console = console or Console()
+        self.clock = clock
+        # rich allows one live display at a time, so the running step is held
+        # here for a nested one to borrow.
+        self._status: Status | None = None
+        self._message: str | None = None
+
+    # -- progress ---------------------------------------------------------
+
+    @contextmanager
+    def step(self, message: str) -> Iterator[None]:
+        """Say what is happening for as long as it is happening.
+
+        Every slow phase in this tool is a subprocess with its output captured,
+        so without this the terminal is indistinguishable from one waiting for
+        you to press enter.
+        """
+        if not self.console.is_terminal:
+            # rich draws nothing live when there is nothing to draw on, and a
+            # piped log still wants to say what took the time.
+            self.console.print(f"  {message}…")
+            yield
+            return
+
+        if self._status is not None:
+            outer = self._message
+            self._say(message)
+            try:
+                yield
+            finally:
+                self._say(outer or message)
+            return
+
+        started = self.clock()
+        with self.console.status(f"[dim]{message}…[/dim]", spinner="dots") as status:
+            self._status = status
+            # Painted now rather than on the next scheduled tick, so the line is
+            # already there when the subprocess that follows blocks for a minute.
+            self._say(message)
+            try:
+                yield
+            finally:
+                self._status = None
+                self._message = None
+
+        # Only on the way out cleanly: after a failure the error is the message,
+        # and a duration sitting above it is noise.
+        elapsed = self.clock() - started
+        if elapsed >= LINGER:
+            self.console.print(f"  [dim]{message} {duration(elapsed)}[/dim]")
+
+    def _say(self, message: str) -> None:
+        if self._status is None:
+            return
+        self._message = message
+        # Passing the spinner back in is what forces the redraw: `update` alone
+        # only takes effect on the next scheduled refresh.
+        self._status.update(f"[dim]{message}…[/dim]", spinner="dots")
 
     # -- primitives -------------------------------------------------------
 

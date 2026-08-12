@@ -285,7 +285,15 @@ def test_the_brief_is_passed_through_verbatim():
 def test_the_nonce_is_last_so_it_is_freshest_in_context():
     prompt = build_prompt("anything", nonce=4712)
 
-    assert prompt.rstrip().endswith("Variation 4712. Make this one distinct.")
+    assert "Variation 4712." in prompt.rstrip().rsplit("\n\n", 1)[-1]
+
+
+def test_being_distinct_is_asked_for_in_the_situation_and_not_in_the_words():
+    # "Make this one distinct" alone came back as unusual vocabulary, which is
+    # the cheapest way to be unusual and the least useful.
+    prompt = build_prompt("anything", nonce=4712)
+
+    assert "keep the words plain" in prompt
 
 
 def test_two_prompts_for_the_same_brief_differ():

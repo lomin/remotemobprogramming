@@ -80,12 +80,16 @@ class Mob:
         """Refresh branches and notes. False when the remote is out of reach."""
         if not self._has_remote():
             return False
-        ok = self.git.run("fetch", "--quiet", "--prune", self.remote, check=False).ok
-        fetch_notes(self.git, self.cfg)
+        with self.ui.step(f"fetching from {self.remote}"):
+            ok = self.git.run("fetch", "--quiet", "--prune", self.remote, check=False).ok
+            fetch_notes(self.git, self.cfg)
         return ok
 
     def _sessions(self) -> list[Session]:
-        sessions, warnings = discover(self.git, self.cfg)
+        # Roughly three git calls per session, so a repository with a long
+        # history of them is a visible pause.
+        with self.ui.step("reading sessions"):
+            sessions, warnings = discover(self.git, self.cfg)
         for warning in warnings:
             self.ui.warn(warning)
         return sessions
@@ -112,7 +116,13 @@ class Mob:
     def _push_branch(self, branch: str) -> bool:
         if not self._has_remote():
             return False
-        return self.git.run("push", "--quiet", "-u", self.remote, branch, check=False).ok
+        with self.ui.step(f"pushing {branch} to {self.remote}"):
+            return self.git.run("push", "--quiet", "-u", self.remote, branch, check=False).ok
+
+    def _publish(self, anchor: str, note: Note) -> bool:
+        """The session's metadata, pushed. A second network round trip."""
+        with self.ui.step("publishing the session note"):
+            return publish_note(self.git, self.cfg, anchor, note)
 
     def _taken(self, branch: str) -> bool:
         return self.git.branch_exists(branch) or self.git.remote_branch_exists(branch, self.remote)
@@ -134,7 +144,7 @@ class Mob:
             created=when,
             author=self.git.out("var", "GIT_COMMITTER_IDENT").rsplit(">", 1)[0] + ">",
         )
-        published = publish_note(self.git, self.cfg, anchor, note)
+        published = self._publish(anchor, note)
         pushed = self._push_branch(branch)
 
         if self._has_remote() and not (pushed and published):
@@ -205,10 +215,12 @@ class Mob:
                 hint="`inv mob.drive` to join one, or `inv mob.start` to open one",
             )
 
-        self.git.run("add", "-A")
-        staged = not self.git.run("diff", "--cached", "--quiet", check=False).ok
+        with self.ui.step("staging the handover"):
+            self.git.run("add", "-A")
+            staged = not self.git.run("diff", "--cached", "--quiet", check=False).ok
+            if staged:
+                self.git.run("commit", "--quiet", "-m", message or "mob: next")
         if staged:
-            self.git.run("commit", "--quiet", "-m", message or "mob: next")
             self.ui.ok("handover committed")
         else:
             self.ui.info("nothing new to commit")
@@ -218,7 +230,7 @@ class Mob:
                 f"could not push {session.branch} to {self.remote}",
                 hint="your work is committed locally — push again when you have a connection",
             )
-        publish_note(self.git, self.cfg, session.anchor, session.note)
+        self._publish(session.anchor, session.note)
         self.ui.ok(f"pushed to {self.remote}/{session.branch}")
         self.ui.info(f"hand over with: inv mob.drive {session.label}")
 
@@ -246,13 +258,14 @@ class Mob:
         backed_up: str | None = None
 
         remote_ref = f"{self.remote}/{session.branch}"
-        if state.kind in (Sync.NO_LOCAL, Sync.BEHIND):
-            switch_to(self.git, session.branch, remote_ref)
-        elif state.kind is Sync.DIVERGED:
-            backed_up = backup(self.git, session.branch, self.cfg, self.clock())
-            switch_to(self.git, session.branch, remote_ref)
-        else:
-            switch_to(self.git, session.branch)
+        with self.ui.step(f"switching to {session.branch}"):
+            if state.kind in (Sync.NO_LOCAL, Sync.BEHIND):
+                switch_to(self.git, session.branch, remote_ref)
+            elif state.kind is Sync.DIVERGED:
+                backed_up = backup(self.git, session.branch, self.cfg, self.clock())
+                switch_to(self.git, session.branch, remote_ref)
+            else:
+                switch_to(self.git, session.branch)
 
         if self.git.remote_branch_exists(session.branch, self.remote):
             self.git.run(
@@ -326,7 +339,11 @@ class Mob:
                 kata = self._generate(brief, complaint)
                 with tempfile.TemporaryDirectory(prefix="mob-kata-") as workspace:
                     built = build_and_prove(
-                        kata, destination.name, self.cfg.sessions_dir, Path(workspace)
+                        kata,
+                        destination.name,
+                        self.cfg.sessions_dir,
+                        Path(workspace),
+                        progress=self.ui.step,
                     )
                     scaffold_install(built, destination)
                 break
@@ -380,15 +397,17 @@ class Mob:
         return summaries
 
     def _generate(self, brief: str, complaint: str | None = None) -> Kata:
+        with self.ui.step("reading past exercises"):
+            already_done = self.past_exercises()
         prompt = build_prompt(
             brief,
-            already_done=self.past_exercises(),
+            already_done=already_done,
             settings=self.rng.sample(SETTINGS, k=4),
             nonce=self.rng.randrange(1000, 10_000),
             complaint=complaint,
         )
-        self.ui.info(f"asking claude ({self.cfg.model}) for an exercise…")
-        payload = Claude(model=self.cfg.model).ask(prompt, SYSTEM_PROMPT, SCHEMA)
+        with self.ui.step(f"asking claude ({self.cfg.model}) for an exercise"):
+            payload = Claude(model=self.cfg.model).ask(prompt, SYSTEM_PROMPT, SCHEMA)
         return parse_kata(payload)
 
     def name(self, new_name: str, target: str | None = None) -> Session:
@@ -410,7 +429,7 @@ class Mob:
             created=session.note.created,
             author=session.note.author,
         )
-        if not publish_note(self.git, self.cfg, session.anchor, note):
+        if not self._publish(session.anchor, note):
             self.ui.warn("named locally — the remote did not get the update")
 
         was = f" (was {session.name})" if session.name else ""

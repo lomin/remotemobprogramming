@@ -269,6 +269,34 @@ in a loop that fires on every keystroke.
 exercise can never turn your suite red. Prefix any of them with `uv run` if you'd rather not
 activate. `inv` is Invoke's short alias for `invoke`; either works.
 
+## Knowing it's working
+
+Every slow thing these tasks do is a subprocess with its output captured — a fetch, a push, the
+`claude` call, the pytest runs behind `inv leetcode`. Left alone, the terminal sits there looking
+exactly like one waiting for you to press enter. So each of those phases announces itself on a
+spinner line while it runs:
+
+```
+❯ inv leetcode 'sliding windows or two pointers — medium'
+⠋ asking claude (opus) for an exercise…
+```
+
+The line is transient. Anything that took more than five seconds leaves one dim line behind
+saying how long it took, so a command that made you wait reads back afterwards as a log of where
+the time went, while a quick one leaves the screen as clean as it ever was:
+
+```
+  reading past exercises 6s
+  asking claude (opus) for an exercise 1m45s
+  checking it passes with its own solution 38s
+✓ medium exercise scaffolded
+```
+
+Piped or redirected there's nothing to animate, so each phase is written out once as a plain
+line instead. `inv test.submit` isn't a spinner — it's pytest — so it runs at `--verbosity=1`,
+which names each test as it starts rather than after it finishes. That's what tells you the half
+minute inside `test_it_scales` is measurement rather than a hang.
+
 ## Layout
 
 ```

@@ -168,6 +168,30 @@ def test_next_commits_everything_and_pushes_the_same_branch(alice):
     assert alice.git("rev-parse", "HEAD") == alice.git("rev-parse", f"origin/{session.branch}")
 
 
+def test_a_handover_says_what_it_is_waiting_on(alice):
+    # Two network round trips -- the branch, then the note -- with git's own
+    # output captured, so without this the terminal looks like it is idle.
+    session = alice.mob.start()
+    alice.write("feature.py", "x = 1\n")
+    alice.clear()
+
+    alice.mob.next()
+
+    assert "staging the handover" in alice.text
+    assert f"pushing {session.branch} to origin" in alice.text
+    assert "publishing the session note" in alice.text
+
+
+def test_taking_the_wheel_says_what_it_is_waiting_on(alice):
+    alice.mob.start()
+    alice.clear()
+
+    alice.mob.drive()
+
+    assert "fetching from origin" in alice.text
+    assert "reading sessions" in alice.text
+
+
 def test_next_respects_gitignore(alice):
     alice.mob.start()
     alice.write(".gitignore", "secret.txt\n")

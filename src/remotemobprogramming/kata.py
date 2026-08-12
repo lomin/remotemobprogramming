@@ -11,6 +11,11 @@ most of the skill, and it is exactly what the LeetCode phrasing removes.
 
 So: keep the tiers, keep the canonical algorithms, keep the guarantee that a
 better-than-obvious answer exists. Drop the vocabulary.
+
+Both vocabularies, in fact. Dropping the technical one is no good if a literary
+one takes its place -- a story about the reed beds of Waverfen buries the
+problem just as thoroughly as one about subarrays, and costs the mob the first
+ten minutes of the session working out what a dyke is. Plain words throughout.
 """
 
 from __future__ import annotations
@@ -36,47 +41,52 @@ TITLE_LINE = re.compile(r"^# (?P<title>.+?)  \((?:easy|medium|hard)\)$", re.MULT
 # call given the same brief twice will otherwise land on the same handful of
 # canonical problems however high the sampling temperature is. The list is long
 # and the suggestion is advisory, so exercises do not come out formulaic.
+#
+# Every one is somewhere an ordinary person has been. An earlier list ran to
+# salt pans, peat bogs and letterpress printing, and the exercises followed it
+# into the vocabulary those trades need -- firn, dyke, quire. A setting with no
+# common words available forces uncommon ones, whatever the prompt asks for.
 SETTINGS = (
-    "tides and harbours",
-    "beekeeping",
-    "railway timetables",
-    "glacier surveys",
+    "a bike repair shop",
+    "a school canteen",
+    "parcel deliveries",
+    "a swimming pool timetable",
+    "a multi-storey car park",
+    "supermarket checkouts",
+    "a bus route",
     "a lending library",
-    "brewing",
-    "cartography",
-    "textile mills",
-    "forestry",
-    "postal sorting",
-    "archaeological digs",
-    "orchestral rehearsals",
-    "fish markets",
-    "letterpress printing",
-    "pottery kilns",
-    "canal locks",
-    "sheep farming",
-    "lighthouse keeping",
-    "seed banks",
-    "a mountain rescue service",
-    "vineyards",
-    "clockmaking",
-    "salt pans",
-    "birdwatching",
-    "quarrying",
-    "a night bus network",
-    "cheese caves",
-    "windmills",
-    "reed beds",
-    "a travelling circus",
-    "peat bogs",
-    "bell ringing",
-    "oyster beds",
-    "avalanche patrols",
-    "a seed catalogue",
-    "kite festivals",
-    "ferry crossings",
-    "hedgerow surveys",
+    "a camping trip",
+    "a football league",
+    "a farmers' market",
+    "a hospital waiting room",
+    "moving house",
     "a village bakery",
-    "star charts",
+    "ferry crossings",
+    "a music festival",
+    "a climbing wall",
+    "a board game night",
+    "a laundrette",
+    "a taxi rank",
+    "a fire station",
+    "a vegetable garden",
+    "an office printer",
+    "a ski lift",
+    "a vending machine",
+    "railway timetables",
+    "a charity shop",
+    "a driving school",
+    "a coffee shop",
+    "a warehouse night shift",
+    "a weather station",
+    "a chess club",
+    "a lost property office",
+    "a marathon",
+    "a fishing trip",
+    "a hotel breakfast",
+    "a scout camp",
+    "recycling collections",
+    "a cinema's screens",
+    "a phone repair counter",
 )
 
 # Phrases that can only be there to name the technique. A statement containing
@@ -142,14 +152,38 @@ one.
 
 Take the framing of Advent of Code: the problem happens in a real or invented
 world, to people or things, and it is comprehensible to someone who does not
-program. A tide-gauge keeper reconciling a ledger. A courier choosing which
-parcels to carry. A festival organiser scheduling fireworks.
+program. A bus driver working out the busiest part of the route. A courier
+picking which parcels fit in the van. A cafe deciding when to open a second
+till.
 
 The framing is not decoration, it is the exercise. "Given an integer array nums,
 return the maximum sum of any contiguous block of length k" tells the solver
-which technique to reach for before they have finished reading. "The harbour
-master wants to know the busiest stretch of any four consecutive hours" does
-not. The modelling is the part worth practising.
+which technique to reach for before they have finished reading. "The cafe wants
+to know its busiest four hours in a row" does not. The modelling is the part
+worth practising.
+
+RULES FOR THE LANGUAGE
+
+The mob reads the statement out loud, together, and English is not everyone's
+first language. Every minute spent decoding the prose is a minute not spent on
+the problem, and a story nobody can picture hides the problem instead of posing
+it. Plain beats vivid here, every time.
+
+- Everyday words only. If a word would send a competent non-native speaker to a
+  dictionary, it is the wrong word: "water level", not "tidal datum"; "shelf",
+  not "gantry"; "left over", not "residual"; "grows", not "accrues".
+- Short sentences, one idea each. If a sentence needs a comma to hold two halves
+  together, it is usually two sentences.
+- Ordinary and present-day: a bike shop, a bus route, a school canteen. No
+  antique trades, no invented place names, no dialect, nothing that needs local
+  knowledge to picture. A silly premise is welcome -- Advent of Code is full of
+  them -- but the words in it still have to be words everyone knows.
+- No ornament. Cut every adjective that does not change the answer. The story is
+  there to be understood once, quickly, not admired.
+- Title it after what is being worked out, in the same plain words: "The Busiest
+  Four Hours", "Two Deliveries That Fit". Never "The Reed Beds of Waverfen".
+- This applies to every word you write, the one-line reason on each example
+  included.
 
 RULES FOR THE STORY
 
@@ -170,8 +204,8 @@ RULES FOR THE STORY
 - Be exact anyway. State precisely what to return, including what happens for
   the awkward inputs: empty, all-equal, ties, and the smallest legal size. A
   reader must never have to guess, and there must be exactly one right answer.
-- Give the bounds in the story's own terms ("a gauge records at most a million
-  readings; each is between -10000 and 10000 millimetres").
+- Give the bounds in the story's own terms ("the shop serves at most a million
+  customers a day, and each one takes between 1 and 600 seconds at the till").
 
 RULES FOR THE SOLUTION
 
@@ -232,29 +266,34 @@ SCHEMA: dict[str, Any] = {
     "properties": {
         "title": {
             "type": "string",
-            "description": "A short narrative title, e.g. 'The Tidal Ledger'. No jargon.",
+            "description": (
+                "What is being worked out, in everyday words, e.g. 'The Busiest "
+                "Four Hours'. No jargon, no invented place names."
+            ),
             "maxLength": 60,
         },
         "difficulty": {"type": "string", "enum": list(DIFFICULTIES)},
         "story": {
             "type": "string",
             "description": (
-                "The situation, in plain prose, two or three short paragraphs. "
-                "Someone who does not program must be able to follow it."
+                "The situation, in one or two short paragraphs, 120 words at "
+                "most. Everyday words and short sentences: someone who does not "
+                "program must follow it on one reading, and a competent "
+                "non-native English speaker must never need a dictionary."
             ),
         },
         "task": {
             "type": "string",
             "description": (
                 "Exactly what the method must return, stated so precisely that "
-                "no input has two defensible answers."
+                "no input has two defensible answers -- and in the same plain words."
             ),
         },
         "constraints": {
             "type": "array",
             "items": {"type": "string"},
             "minItems": 1,
-            "description": "Bounds and guarantees, phrased in the story's own terms.",
+            "description": "Bounds and guarantees, phrased in the story's own plain terms.",
         },
         "entry_point": {
             "type": "string",
@@ -281,7 +320,10 @@ SCHEMA: dict[str, Any] = {
                     },
                     "why": {
                         "type": "string",
-                        "description": "One line: what this example pins down.",
+                        "description": (
+                            "One plain line: what this example pins down. It becomes "
+                            "the test's docstring, so the mob reads it too."
+                        ),
                     },
                     "code": {
                         "type": "string",
@@ -467,8 +509,13 @@ def build_prompt(
         )
     if complaint:
         parts.append(f"A previous attempt was thrown away because {complaint}. Avoid that.")
-    # Last, so it is the freshest thing in context.
-    parts.append(f"Variation {nonce}. Make this one distinct.")
+    # Last, so it is the freshest thing in context. "Make this one distinct" on
+    # its own was read as licence to be exotic, and the cheapest axis of exotic
+    # is vocabulary -- so it says which axis to be distinct on.
+    parts.append(
+        f"Variation {nonce}. Make this one distinct in situation and in what has "
+        "to be worked out. Not in vocabulary: keep the words plain."
+    )
     return "\n\n".join(parts)
 
 

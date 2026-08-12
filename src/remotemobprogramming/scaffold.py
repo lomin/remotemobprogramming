@@ -28,6 +28,8 @@ import shutil
 import subprocess
 import sys
 import textwrap
+from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -47,6 +49,15 @@ addopts = -q --tb=short
 
 class ScaffoldError(MobError):
     pass
+
+
+# How the caller says what is happening. Kept as a plain callable so this module
+# knows nothing about the terminal, and the gates stay testable in silence.
+Progress = Callable[[str], AbstractContextManager[None]]
+
+
+def _silent(message: str) -> AbstractContextManager[None]:
+    return nullcontext()
 
 
 # -- stripping the solution -------------------------------------------------
@@ -275,17 +286,28 @@ def format_with_ruff(root: Path) -> None:
         subprocess.run([sys.executable, "-m", "ruff", *argv], capture_output=True, check=False)
 
 
-def build_and_prove(kata: Kata, name: str, container: str, workspace: Path) -> Path:
+def build_and_prove(
+    kata: Kata,
+    name: str,
+    container: str,
+    workspace: Path,
+    *,
+    progress: Progress = _silent,
+) -> Path:
     """Render, gate, and hand back the directory ready to be copied into place."""
     write_package(kata, workspace, name, container, solved=True)
     directory = workspace / container / name
-    gate_solved(workspace, directory)
+    # Three pytest runs, the first of which measures how the solution scales.
+    # Minutes can pass here, so the caller gets to say so.
+    with progress("checking it passes with its own solution"):
+        gate_solved(workspace, directory)
 
     # Formatted only here, so the second gate validates the exact text that
     # gets installed rather than something ruff has yet to touch.
     (directory / "main.py").write_text(render_main(kata, solved=False))
     format_with_ruff(workspace)
-    gate_skeleton(workspace, directory)
+    with progress("checking the skeleton fails"):
+        gate_skeleton(workspace, directory)
     return directory
 
 

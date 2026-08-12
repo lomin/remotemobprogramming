@@ -84,7 +84,10 @@ def test_run(c):
 @task(name="submit")
 def test_submit(c):
     """Run this session's exercise in full, scaling checks included."""
-    c.run(f"uv run pytest {_exercise()}", pty=True)
+    # --verbosity=1 rather than -v: `-q` in addopts decrements the same counter,
+    # so -v only cancels it out. Naming each test as it starts is what says the
+    # half minute inside the scaling check is work rather than a hang.
+    c.run(f"uv run pytest {_exercise()} --verbosity=1", pty=True)
 
 
 # --- mob sessions ----------------------------------------------------------
