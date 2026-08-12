@@ -9,7 +9,9 @@ authors = [
     { name = "Steven Collins", email = "happylomin@gmail.com" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "rich>=15.0.0",
+]
 
 [project.scripts]
 remotemobprogramming = "remotemobprogramming:main"
@@ -26,9 +28,22 @@ dev = [
     "ruff>=0.16.1",
 ]
 
+[tool.mob]
+# Branch that `inv mob.start` opens a root session from. Falls back to
+# origin/HEAD, then local main, then the current branch.
+base = "main"
+# Namespace for session branches. Backups live under mob-backup/ so they never
+# show up as sessions.
+prefix = "mob/"
+remote = "origin"
+notes_ref = "mob"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers --strict-config"
+# tasks.py lives at the root and is not part of the package, but its argument
+# wiring is worth testing.
+pythonpath = ["."]
 
 [tool.pytest-watcher]
 runner = "uv"

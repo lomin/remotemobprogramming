@@ -13,9 +13,8 @@
 # with this program. If not, see <https://www.gnu.org/licenses/>.
 
 
-def greet(name: str) -> str:
-    return f"Hello, {name}!"
-
-
 def main() -> None:
-    print(greet("mob"))
+    """Show the session tree, the same as `inv mob.list`."""
+    from .commands import Mob
+
+    Mob().list()
