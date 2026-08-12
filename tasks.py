@@ -1,3 +1,4 @@
+import os
 from shlex import quote
 
 from invoke import Collection, Exit, task
@@ -5,6 +6,28 @@ from invoke import Collection, Exit, task
 from remotemobprogramming.commands import Mob
 from remotemobprogramming.errors import MobError
 from remotemobprogramming.render import Ui
+
+# A pty is what lets pytest, ruff and ptw see a terminal, so they colour their
+# output and redraw in place instead of dumping plain text down a pipe. Windows
+# has no `pty` module at all and Invoke raises rather than quietly going without,
+# so ask for one only where one exists.
+PTY = os.name != "nt"
+
+
+def _sh(text: str) -> str:
+    """Quote one argument for the shell Invoke will hand the command to.
+
+    `shlex.quote` is POSIX-only. On Windows Invoke runs through COMSPEC --
+    cmd.exe -- where a single quote is an ordinary character rather than a
+    quote, so `-m 'not complexity'` arrives at pytest as two arguments,
+    `'not` and `complexity'`, and the marker expression never matches.
+    """
+    return quote(text) if os.name != "nt" else f'"{text}"'
+
+
+# Spelled once: it appears in two tasks, and getting the quoting right is the
+# whole point.
+NOT_COMPLEXITY = _sh("not complexity")
 
 
 def _run(action):
@@ -18,7 +41,7 @@ def _run(action):
 
 def _exercise():
     """The current session's exercise directory, as a shell-safe path."""
-    return quote(str(_run(lambda mob: mob.exercise_dir())))
+    return _sh(str(_run(lambda mob: mob.exercise_dir())))
 
 
 @task
@@ -27,7 +50,7 @@ def watch(c):
     # The scaling checks are minutes of measurement, so they have no business
     # in a loop that fires on every keystroke.
     path = _exercise()
-    c.run(f"uv run ptw {path} {path} -m 'not complexity'", pty=True)
+    c.run(f"uv run ptw {path} {path} -m {NOT_COMPLEXITY}", pty=PTY)
 
 
 @task(
@@ -45,19 +68,19 @@ def leetcode(c, brief):
 @task
 def lint(c):
     """Lint, auto-fixing what is safely fixable."""
-    c.run("uv run ruff check --fix .", pty=True)
+    c.run("uv run ruff check --fix .", pty=PTY)
 
 
 @task
 def fmt(c):
     """Format the code."""
-    c.run("uv run ruff format .", pty=True)
+    c.run("uv run ruff format .", pty=PTY)
 
 
 @task
 def install(c):
     """Sync the venv with pyproject.toml / uv.lock."""
-    c.run("uv sync", pty=True)
+    c.run("uv sync", pty=PTY)
 
 
 # --- tests -----------------------------------------------------------------
@@ -70,15 +93,15 @@ def install(c):
 @task(name="self")
 def test_self(c):
     """Check the mob tooling itself: format, lint, and its own suite."""
-    c.run("uv run ruff format --check .", pty=True)
-    c.run("uv run ruff check .", pty=True)
-    c.run("uv run pytest tests", pty=True)
+    c.run("uv run ruff format --check .", pty=PTY)
+    c.run("uv run ruff check .", pty=PTY)
+    c.run("uv run pytest tests", pty=PTY)
 
 
 @task(name="run", default=True)
 def test_run(c):
     """Run this session's exercise, without the scaling checks."""
-    c.run(f"uv run pytest {_exercise()} -m 'not complexity'", pty=True)
+    c.run(f"uv run pytest {_exercise()} -m {NOT_COMPLEXITY}", pty=PTY)
 
 
 @task(name="submit")
@@ -87,7 +110,7 @@ def test_submit(c):
     # --verbosity=1 rather than -v: `-q` in addopts decrements the same counter,
     # so -v only cancels it out. Naming each test as it starts is what says the
     # half minute inside the scaling check is work rather than a hang.
-    c.run(f"uv run pytest {_exercise()} --verbosity=1", pty=True)
+    c.run(f"uv run pytest {_exercise()} --verbosity=1", pty=PTY)
 
 
 # --- mob sessions ----------------------------------------------------------
