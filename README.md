@@ -73,3 +73,16 @@ mistakes surface immediately instead of at release time.
 uv add requests          # runtime dependency
 uv add --dev pytest-cov  # dev-only dependency
 ```
+
+## Licence
+
+Copyright (C) 2026 Steven Collins.
+
+Licensed under the [GNU Affero General Public License v3.0 only](LICENSE)
+(`AGPL-3.0-only`) — the strictest OSI-approved licence. Anything built on this must
+stay open source under the same terms, and unlike the GPL that obligation is triggered
+by **network use**, not just distribution: run a modified version as a service and you
+must offer its users the corresponding source.
+
+Note this is `-only`, not `-or-later` — recipients cannot switch to a future AGPL
+version. Contributions are accepted under the same licence.
