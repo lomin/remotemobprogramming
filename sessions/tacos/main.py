@@ -44,17 +44,22 @@ class Solution:
         heap = [(0,0)]
         candidates = []
 
-        while heap:
-            stretch = heap[0]
-            print(stretch)
-            left_index = stretch[0]
-            right_index = stretch[1]
-            candidates.append(readings[left_index:right_index + 1])
+        i = 0
+        while i < len(heap):
+            stretch_bounds = heap[i]
+            i += 1 
+            left_index = stretch_bounds[0]
+            right_index = stretch_bounds[1]
+            stretch = readings[left_index:right_index + 1]
+            if abs(max(stretch) - min(stretch)) <= allowed_gap:
+                candidates.append(stretch)
             if right_index + 1 < len(readings):
-                heap.append((left_index, right_index + 1))
+                candidate_1  = (left_index, right_index + 1)
+                if candidate_1 not in heap:
+                    heap.append(candidate_1)
             if left_index < right_index:
-                heap.append((left_index + 1, right_index))
-        
+                candidate_2 = (left_index + 1, right_index)
+                if candidate_2 not in heap:
+                    heap.append(candidate_2)
             
-
-        return len(heap)
+        return len(candidates)

@@ -56,7 +56,8 @@ markers = [
 
 [tool.pytest-watcher]
 runner = "uv"
-runner_args = ["run", "pytest", "-x", "--ff"]
+# No -x: the mob wants the whole picture each run, not just the first failure.
+runner_args = ["run", "pytest", "--ff"]
 patterns = ["*.py"]
 
 [tool.ruff]
