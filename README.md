@@ -14,7 +14,7 @@ That creates `.venv` and installs the package in editable mode plus the dev tool
 ## The TDD loop
 
 ```sh
-make watch
+uv run inv watch
 ```
 
 Reruns the suite on every `.py` save, stops at the first failure, and runs the
@@ -23,19 +23,25 @@ work: write a failing test, watch it go red, make it green, refactor.
 
 ## Other commands
 
+Tasks are defined in `tasks.py` and run with [Invoke](https://www.pyinvoke.org/).
+`uv run inv --list` shows them all.
+
 | Command | What it does |
 |---|---|
-| `make test` | Run the suite once |
-| `make lint` | `ruff check --fix` |
-| `make fmt` | `ruff format` |
-| `make check` | Format check + lint + tests (what CI would run) |
-| `make install` | `uv sync` |
+| `uv run inv test` | Run the suite once |
+| `uv run inv lint` | `ruff check --fix` |
+| `uv run inv fmt` | `ruff format` |
+| `uv run inv check` | Format check + lint + tests (what CI would run) |
+| `uv run inv install` | `uv sync` |
+
+`inv` is Invoke's short alias for `invoke`; either works.
 
 ## Layout
 
 ```
 src/remotemobprogramming/   # the package — installed into the venv
 tests/                      # tests import it the same way production code would
+tasks.py                    # Invoke tasks (replaces a Makefile)
 pyproject.toml              # deps, pytest, pytest-watcher and ruff config
 ```
 
