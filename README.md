@@ -4,17 +4,34 @@ A Python 3.13 project managed with [uv](https://docs.astral.sh/uv/), set up for 
 
 ## Setup
 
+One command on a fresh clone:
+
 ```sh
-uv sync
+source ./active.sh
 ```
 
-That creates `.venv` and installs the package in editable mode plus the dev tools. No
-`activate` needed — `uv run <cmd>` uses the venv automatically.
+Creates `.venv` if it is missing, installs the package plus dev tools, and activates the
+venv so `inv`, `pytest` and `python` work without a prefix. `deactivate` when you're done.
+
+It must be **sourced**, not executed — `./active.sh` would activate a subprocess that
+immediately exits, leaving your shell untouched. The script refuses to run that way and
+tells you so.
+
+### Or skip activation entirely
+
+```sh
+uv run inv <task>
+```
+
+Works from a cold clone with no setup at all. Every invocation re-syncs against
+`uv.lock`, so it can never run against a stale or missing venv — an activated shell
+does not do that. If someone runs `uv add` while your shell is active, run `uv sync`
+to catch up.
 
 ## The TDD loop
 
 ```sh
-uv run inv watch
+inv watch          # or: uv run inv watch
 ```
 
 Reruns the suite on every `.py` save, stops at the first failure, and runs the
@@ -24,24 +41,26 @@ work: write a failing test, watch it go red, make it green, refactor.
 ## Other commands
 
 Tasks are defined in `tasks.py` and run with [Invoke](https://www.pyinvoke.org/).
-`uv run inv --list` shows them all.
+`inv --list` shows them all.
 
 | Command | What it does |
 |---|---|
-| `uv run inv test` | Run the suite once |
-| `uv run inv lint` | `ruff check --fix` |
-| `uv run inv fmt` | `ruff format` |
-| `uv run inv check` | Format check + lint + tests (what CI would run) |
-| `uv run inv install` | `uv sync` |
+| `inv test` | Run the suite once |
+| `inv lint` | `ruff check --fix` |
+| `inv fmt` | `ruff format` |
+| `inv check` | Format check + lint + tests (what CI would run) |
+| `inv install` | `uv sync` |
 
-`inv` is Invoke's short alias for `invoke`; either works.
+Prefix any of them with `uv run` if you'd rather not activate. `inv` is Invoke's short
+alias for `invoke`; either works.
 
 ## Layout
 
 ```
+active.sh                   # source it to set up + activate the venv
 src/remotemobprogramming/   # the package — installed into the venv
 tests/                      # tests import it the same way production code would
-tasks.py                    # Invoke tasks (replaces a Makefile)
+tasks.py                    # Invoke tasks
 pyproject.toml              # deps, pytest, pytest-watcher and ruff config
 ```
 
