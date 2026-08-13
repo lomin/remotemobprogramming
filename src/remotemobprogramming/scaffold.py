@@ -33,6 +33,7 @@ from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 
+from .bench import QUIET
 from .errors import MobError
 from .kata import Kata
 
@@ -232,6 +233,10 @@ def run_pytest(root: Path, target: Path, *extra: str, timeout: float = 600.0) ->
         # dashes and all. Writing to a pipe, the child would otherwise encode it
         # with the locale's codec while we decode as UTF-8 below.
         "PYTHONIOENCODING": "utf-8",
+        # The scaling test draws a spinner on the terminal, straight past this
+        # capture. Our own spinner is already there saying which gate is
+        # running, and two live displays on one terminal fight.
+        QUIET: "1",
     }
     try:
         # This interpreter, not `uv run`: we are already inside the environment
